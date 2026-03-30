@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CineAnalyze — Movie Platform</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080810;
+      --surface: #0e0e18;
+      --card: #111120;
+      --border: #1a1a2e;
+      --red: #e5091a;
+      --red-glow: rgba(229,9,26,0.15);
+      --gold: #f5c518;
+      --text: #eaeaf5;
+      --muted: #5a5a7a;
+      --muted2: #3a3a5a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* film-grain overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: 0.4;
+    }
+
+    /* hero glow top-left */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px; left: -200px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(229,9,26,0.12) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .page { position: relative; z-index: 1; }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.2rem;
+      letter-spacing: 4px;
+      color: var(--text);
+    }
+    .nav-logo em { color: var(--red); font-style: normal; }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .nav-tag {
+      background: var(--red-glow);
+      border: 1px solid rgba(229,9,26,0.3);
+      color: var(--red);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 4px;
+    }
+
+    /* ── HERO ANALYTICS ── */
+    .analytics-section {
+      padding: 40px 48px 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .chart-container {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      height: 220px;
+      position: relative;
+    }
+
+    .stats-col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-box::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--red);
+    }
+    .stat-label { font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 2px; color: var(--text); }
+
+    /* ── SEARCH & FILTERS ── */
+    .controls-section {
+      padding: 32px 48px;
+    }
+
+    .search-bar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+
+    .search-input-wrap {
+      position: relative;
+    }
+    .search-input-wrap input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px 14px 48px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input-wrap input::placeholder { color: var(--muted); }
+    .search-input-wrap input:focus { border-color: var(--red); }
+    .search-input-wrap .search-icon {
+      position: absolute;
+      left: 16px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .genre-filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .genre-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .genre-btn:hover { border-color: var(--muted2); color: var(--text); }
+    .genre-btn.active {
+      background: var(--red-glow);
+      border-color: rgba(229,9,26,0.5);
+      color: var(--red);
+    }
+
+    /* ── MOVIE GRID ── */
+    .movies-section {
+      padding: 0 48px 60px;
+    }
+
+    .movies-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .movie-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .movie-card:hover {
+      border-color: var(--red);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(229,9,26,0.12);
+    }
+
+    .movie-poster {
+      width: 100%;
+      aspect-ratio: 2/3;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .movie-poster-bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #1a1a2e, #0e0e18);
+    }
+    .movie-poster-title {
+      position: relative; z-index: 1;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: 2px;
+      text-align: center;
+      padding: 16px;
+      color: var(--text);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      line-height: 1.3;
+    }
+    .movie-poster::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 60%;
+      background: linear-gradient(to top, rgba(17,17,32,0.95), transparent);
+    }
+
+    .movie-info {
+      padding: 14px 16px 16px;
+    }
+
+    .movie-title {
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .movie-meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .rating-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .rating-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .rating-input:focus { border-color: var(--red); }
+    .rating-input::placeholder { color: var(--muted); }
+
+    .submit-rating {
+      background: var(--red);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 7px 12px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .submit-rating:hover { background: #ff1a2a; }
+
+    .review-success {
+      background: rgba(74,222,128,0.1);
+      border: 1px solid rgba(74,222,128,0.3);
+      border-radius: 6px;
+      color: #4ade80;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 7px 10px;
+      display: none;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .delete-rating-btn {
+      width: 100%;
+      background: transparent;
+      border: 1px solid rgba(229,9,26,0.3);
+      border-radius: 6px;
+      color: var(--red);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 6px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      display: none;
+      transition: all 0.2s;
+    }
+    .delete-rating-btn:hover {
+      background: rgba(229,9,26,0.1);
+      border-color: var(--red);
+    }
+
+    /* Stars display */
+    .stars {
+      color: var(--gold);
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+    }
+
+    /* empty state */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+    }
+    .empty-state .big { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 4px; margin-bottom: 8px; opacity: 0.3; }
+    .empty-state .small { font-size: 0.85rem; }
+
+    /* toast */
+    .toast {
+      position: fixed;
+      bottom: 32px; right: 32px;
+      background: var(--card);
+      border: 1px solid var(--red);
+      color: var(--red);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 12px 24px;
+      border-radius: 8px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Animations */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fu 0.5s forwards;
+    }
+    @keyframes fu { to { opacity: 1; transform: none; } }
+
+    .card-enter {
+      animation: cardIn 0.3s ease both;
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: none; }
+    }
+
+    @media (max-width: 768px) {
+      nav, .analytics-section, .controls-section, .movies-section { padding-left: 20px; padding-right: 20px; }
+      .analytics-grid { grid-template-columns: 1fr; }
+      .movies-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- NAV -->
+  <nav class="fade-up">
+    <div class="nav-logo">CINE<em>ANALYZE</em></div>
+    <div class="nav-right">
+      <span class="nav-tag">Full-Stack Project</span>
+    </div>
+  </nav>
+
+  <!-- ANALYTICS -->
+  <div class="analytics-section fade-up" style="animation-delay:0.1s">
+    <div class="section-label">Your Latest Ratings — Last 5 Reviewed</div>
+    <div class="analytics-grid">
+      <div class="chart-container">
+        <canvas id="analyticsChart"></canvas>
+      </div>
+      <div class="stats-col">
+        <div class="stat-box">
+          <div class="stat-label">Movies Indexed</div>
+          <div class="stat-value" id="stat-count">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Reviews Submitted</div>
+          <div class="stat-value" id="stat-reviews">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls-section fade-up" style="animation-delay:0.2s">
+    <div class="search-bar">
+      <div class="search-input-wrap">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="movieSearch" placeholder="Search titles, genres, directors…" oninput="runSearch()" />
+      </div>
+    </div>
+    <div class="genre-filters" id="genreFilters">
+      <button class="genre-btn active" onclick="setGenre('', this)">All</button>
+      <button class="genre-btn" onclick="setGenre('Action', this)">Action</button>
+      <button class="genre-btn" onclick="setGenre('Horror', this)">Horror</button>
+      <button class="genre-btn" onclick="setGenre('Science Fiction', this)">Sci-Fi</button>
+      <button class="genre-btn" onclick="setGenre('Drama', this)">Drama</button>
+      <button class="genre-btn" onclick="setGenre('Comedy', this)">Comedy</button>
+      <button class="genre-btn" onclick="setGenre('Thriller', this)">Thriller</button>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="movies-section">
+    <div class="section-label" style="margin-bottom:24px">Films</div>
+    <div class="movies-grid" id="movieGrid">
+      <div class="empty-state">
+        <div class="big">LIGHTS</div>
+        <div class="small">Loading films…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentGenre = '';
+  let movieChart;
+  let reviewCount = 0;
+  // Tracks user-submitted ratings: { movieId: { title, ratings: [] } }
+  const userRatings = {};
+
+  const POSTER_COLORS = [
+    ['#1a0a2e','#3d1a6e'],['#0a1a2e','#1a3d6e'],['#1a1a0a','#4a3d0a'],
+    ['#2e0a0a','#6e1a1a'],['#0a2e1a','#1a6e3d'],['#1a0a1a','#4a1a4a'],
+  ];
+
+  const DEMO_MOVIES = [
+    { id:1, title:'Inception', genre:'Science Fiction', votes: 8.8 },
+    { id:2, title:'The Dark Knight', genre:'Action', votes: 9.0 },
+    { id:3, title:'Parasite', genre:'Drama', votes: 8.6 },
+    { id:4, title:'Interstellar', genre:'Science Fiction', votes: 8.7 },
+    { id:5, title:'The Conjuring', genre:'Horror', votes: 7.5 },
+    { id:6, title:'Get Out', genre:'Horror', votes: 7.7 },
+    { id:7, title:'Dune', genre:'Science Fiction', votes: 8.0 },
+    { id:8, title:'Avengers: Endgame', genre:'Action', votes: 8.4 },
+    { id:9, title:'The Shawshank Redemption', genre:'Drama', votes: 9.3 },
+    { id:10, title:'Goodfellas', genre:'Drama', votes: 8.7 },
+    { id:11, title:'Everything Everywhere', genre:'Drama', votes: 8.0 },
+    { id:12, title:'Oppenheimer', genre:'Drama', votes: 8.3 },
+  ];
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function starsFromRating(r) {
+    const full = Math.round(r / 2);
+    return '★'.repeat(full) + '☆'.repeat(5 - full);
+  }
+
+  function renderMovies(movies) {
+    const grid = document.getElementById('movieGrid');
+    if (!movies || movies.length === 0) {
+      grid.innerHTML = `<div class="empty-state"><div class="big">EMPTY</div><div class="small">No films match your search</div></div>`;
+      return;
+    }
+
+    grid.innerHTML = movies.map((m, i) => {
+      const id = m.id ?? m[0];
+      const title = m.title ?? m[1];
+      const colPair = POSTER_COLORS[id % POSTER_COLORS.length];
+      const delay = (i % 12) * 0.04;
+      return `
+        <div class="movie-card card-enter" style="animation-delay:${delay}s">
+          <div class="movie-poster">
+            <div class="movie-poster-bg" style="background: linear-gradient(135deg, ${colPair[0]}, ${colPair[1]})"></div>
+            <div class="movie-poster-title">${title}</div>
+          </div>
+          <div class="movie-info">
+            <div class="movie-title" title="${title}">${title}</div>
+            <div class="movie-meta">${m.genre ?? 'Film'}</div>
+            <div class="rating-row">
+              <input class="rating-input" id="rate-${id}" type="number" min="1" max="10" placeholder="1-10" />
+              <button class="submit-rating" id="submit-btn-${id}" onclick="addReview(${id})">Rate</button>
+            </div>
+            <div class="review-success" id="success-${id}">✓ Rated!</div>
+            <button class="delete-rating-btn" id="delete-btn-${id}" onclick="deleteReview(${id})">✕ Delete Rating</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('stat-count').textContent = movies.length;
+  }
+
+  async function runSearch() {
+    const query = document.getElementById('movieSearch').value.toLowerCase();
+    try {
+      const res = await fetch(`http://127.0.0.1:5001/search_movies?q=${query}&genre=${currentGenre}`);
+      const movies = await res.json();
+      renderMovies(movies);
+    } catch(e) {
+      // Demo mode
+      let filtered = DEMO_MOVIES.filter(m => {
+        const matchQ = !query || m.title.toLowerCase().includes(query);
+        const matchG = !currentGenre || m.genre === currentGenre;
+        return matchQ && matchG;
+      });
+      renderMovies(filtered);
+    }
+  }
+
+  async function updateChart() {
+    try {
+      const res = await fetch('http://127.0.0.1:5001/movie_stats');
+      const data = await res.json();
+      // Only show entries that actually have reviews
+      if (data.labels && data.labels.length > 0) {
+        drawChart(data.labels.slice(0, 5), data.scores.slice(0, 5));
+      } else {
+        drawChart([], []);
+      }
+      document.getElementById('stat-reviews').textContent = reviewCount;
+    } catch(e) {
+      // Only show user-submitted ratings — never fill with demo data
+      const entries = Object.values(userRatings).map(entry => ({
+        title: entry.title,
+        score: parseFloat((entry.ratings.reduce((a, b) => a + b, 0) / entry.ratings.length).toFixed(1)),
+        submittedAt: entry.submittedAt
+      }));
+
+      // Sort by most recently submitted, take latest 5
+      const latest = entries
+        .sort((a, b) => b.submittedAt - a.submittedAt)
+        .slice(0, 5);
+
+      drawChart(
+        latest.map(e => e.title.length > 14 ? e.title.slice(0, 12) + '…' : e.title),
+        latest.map(e => e.score)
+      );
+      document.getElementById('stat-reviews').textContent = reviewCount;
+    }
+  }
+
+  function drawChart(labels, scores) {
+    const ctx = document.getElementById('analyticsChart').getContext('2d');
+    if (movieChart) movieChart.destroy();
+
+    // Empty state — no ratings yet
+    if (labels.length === 0) {
+      movieChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: ['Rate a movie to see it here'], datasets: [{ data: [0], backgroundColor: 'rgba(229,9,26,0.1)', borderColor: 'rgba(229,9,26,0.2)', borderWidth: 1, borderRadius: 4 }] },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: {
+            x: { ticks: { color: '#3a3a5a', font: { family: 'Outfit', size: 11 } }, grid: { display: false }, border: { color: '#1a1a2e' } },
+            y: { min: 0, max: 10, ticks: { color: '#3a3a5a', font: { family: 'Outfit', size: 10 }, stepSize: 2 }, grid: { color: '#1a1a2e' }, border: { color: '#1a1a2e' } }
+          }
+        }
+      });
+      return;
+    }
+
+    movieChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: scores,
+          backgroundColor: scores.map((s) => s >= 8 ? 'rgba(229,9,26,0.85)' : 'rgba(229,9,26,0.4)'),
+          borderColor: 'rgba(229,9,26,0.9)',
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#111120',
+            borderColor: '#1a1a2e',
+            borderWidth: 1,
+            titleColor: '#eaeaf5',
+            bodyColor: '#5a5a7a',
+            titleFont: { family: 'Bebas Neue', size: 14 },
+            bodyFont: { family: 'Outfit', size: 12 },
+            callbacks: { label: ctx => ` Your Rating: ${ctx.parsed.y}/10` }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#5a5a7a', font: { family: 'Outfit', size: 10 } },
+            grid: { display: false },
+            border: { color: '#1a1a2e' }
+          },
+          y: {
+            min: 0, max: 10,
+            ticks: { color: '#5a5a7a', font: { family: 'Outfit', size: 10 }, stepSize: 2 },
+            grid: { color: '#1a1a2e' },
+            border: { color: '#1a1a2e' }
+          }
+        }
+      }
+    });
+  }
+
+  function setGenre(genre, btn) {
+    currentGenre = genre;
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    runSearch();
+  }
+
+  async function addReview(id) {
+    const ratingEl = document.getElementById(`rate-${id}`);
+    const rating = parseInt(ratingEl.value);
+    if (!rating || rating < 1 || rating > 10) { showToast('Enter a rating between 1–10'); return; }
+
+    // Find movie title from demo data or rendered card
+    const titleEl = document.querySelector(`#rate-${id}`)?.closest('.movie-info')?.querySelector('.movie-title');
+    const title = titleEl ? titleEl.textContent.trim() : `Movie ${id}`;
+
+    // Store locally so chart updates immediately
+    if (!userRatings[id]) userRatings[id] = { title, ratings: [], submittedAt: Date.now() };
+    else userRatings[id].submittedAt = Date.now(); // update timestamp on re-rate
+    userRatings[id].ratings.push(rating);
+
+    try {
+      await fetch('http://127.0.0.1:5001/add_review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movie_id: id, rating, comment: 'User review' })
+      });
+    } catch(e) {
+      // demo — already stored locally above
+    }
+
+    reviewCount++;
+    const successEl = document.getElementById(`success-${id}`);
+    const avg = (userRatings[id].ratings.reduce((a,b)=>a+b,0) / userRatings[id].ratings.length).toFixed(1);
+    successEl.textContent = `✓ Rated ${rating}/10 · Avg: ${avg}`;
+    ratingEl.style.display = 'none';
+    document.getElementById(`submit-btn-${id}`).style.display = 'none';
+    successEl.style.display = 'block';
+    document.getElementById(`delete-btn-${id}`).style.display = 'block';
+    document.getElementById('stat-reviews').textContent = reviewCount;
+    showToast(`Rated ${title}: ${rating}/10`);
+
+    // Immediately refresh chart with new data
+    updateChart();
+  }
+
+  async function deleteReview(id) {
+    if (!userRatings[id]) return;
+    const title = userRatings[id].title;
+
+    // Remove from local store
+    delete userRatings[id];
+    reviewCount = Math.max(0, reviewCount - 1);
+
+    // Try backend delete
+    try {
+      await fetch(`http://127.0.0.1:5001/delete_review/${id}`, { method: 'DELETE' });
+    } catch(e) {
+      // demo mode — already removed locally
+    }
+
+    // Restore the rating UI
+    const ratingEl = document.getElementById(`rate-${id}`);
+    const submitBtn = document.getElementById(`submit-btn-${id}`);
+    const successEl = document.getElementById(`success-${id}`);
+    const deleteBtn = document.getElementById(`delete-btn-${id}`);
+
+    ratingEl.value = '';
+    ratingEl.style.display = '';
+    submitBtn.style.display = '';
+    successEl.style.display = 'none';
+    deleteBtn.style.display = 'none';
+
+    document.getElementById('stat-reviews').textContent = reviewCount;
+    showToast(`Rating removed for ${title}`);
+    updateChart();
+  }
+
+  // Init
+  runSearch();
+  updateChart();
+</script>
+</body>
+</html>
